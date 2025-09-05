@@ -1,21 +1,15 @@
+import os
+import io
+from uuid import uuid4
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from gtts import gTTS
-from fastapi.responses import FileResponse
-from uuid import uuid4
+from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 
-
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost",
-    "https://yourfrontend.com"
-]
-
-# Apply CORS middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,25 +18,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
 class TextAudio(BaseModel):
-    text:str
+    text: str
 
 @app.post("/text")
 def create_text(ta: TextAudio):
-    fname = str(uuid4()) + ".mp3"
     text = ta.text
-    tts = gTTS(text=text,lang='en')
-    tts.save("audios/"+fname)
-    return FileResponse("audios/"+fname)
+    tts = gTTS(text=text, lang='en')
+    audio_bytes = io.BytesIO()
+    tts.write_to_fp(audio_bytes)
+    audio_bytes.seek(0)
+    return StreamingResponse(audio_bytes, media_type="audio/mpeg")
 
-@app.get('/')
+@app.get("/")
 def index():
-    # text = "this is FastAPI and gtts"
-    # tts = gTTS(text=text,lang='en')
-    # tts.save('output.mp3')
-    return FileResponse('audios/output.mp3',
-                        media_type="audio/mpeg",
-                        filename="output.mp3",
-                        headers={"Content-Disposition":"attachment; filename=output.mp3"})
+    return {"message": "FastAPI with gTTS is running!"}
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
